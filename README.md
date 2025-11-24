@@ -1,25 +1,32 @@
 # INNOQ Timer
 
-Ein Timer im INNOQ Stil, den man bei Remote Trainings in den Pausen zeigen kann
+Ein Timer im INNOQ Stil, den man bei Remote Trainings in den Pausen zeigen kann.
 
-![](img/product.png)
+![](docs/product.jpg)
 
-## Vorraussetzungen
+## Einfache Nutzung
 
-- Node.js
+1. Die letzte Version aus den [Releases](https://github.com/innoq/innoq-timer/releases) herunterladen
+2. File im Browser öffnen
 
-## Starten
- 1. Dependencies installieren
-    ```bash 
-    npm ci
-    ```
-2. Anwendung starten:
-   ```bash
-   npm run dev
-   ```
+## Nutzung
 
-## Konfiguration
+1. Repository klonen oder herunterladen.
 
-### Port ändern
+## Nutzung mit lokalem Server
 
-In der `vite.config.js` den Port anpassen
+2. In das Repository-Verzeichnis wechseln.
+3. Lokalen HTTP-Server starten (z.B. in Python: `python3 -m http.server -p ${PORT}`)
+4. Timer im Broser öffnen: http://localhost:${PORT}/
+
+## Standalone Lösung
+
+2. In das Repository-Verzeichnis wechseln.
+3. Standalone-File bauen über `node build.js` (setzt lokal installierets Node und esbuild voraus)
+4. File im Browser öffnen (`dist/index.html`)
+
+## Custom Element Attribute
+
+Das `<innoq-timer>` Element versteht optionale Attribute:
+
+- `offsetInMinutes="15"` initialisiert das Formular mit einer Zeit, die `15` Minuten in der Zukunft liegt (und setzt neue Werte nach einem Reset).
