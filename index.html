@@ -1,67 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>INNOQ Timer</title>
-    <link rel="stylesheet" href="/style.css" />
-  </head>
-  <body>
-    <div id="app">
-      <header class="timer__header">
-        <img class="timer__logo" src="/innoq-logo.svg" alt="INNOQ Logo" />
-      </header>
-      
-      <main class="timer__main">
-        <section class="timer__input-section">
-          <div class="timer__input-group">
-            <label for="time-input" class="timer__label">Pause Bis</label>
-            <div class="timer__time-picker">
-              <input 
-                type="text" 
-                id="hour-input" 
-                class="timer__time-input"
-                placeholder="HH"
-                maxlength="2"
-                pattern="[0-9]{1,2}"
-              />
-              <span class="timer__time-separator">:</span>
-              <input 
-                type="text" 
-                id="minute-input" 
-                class="timer__time-input"
-                placeholder="MM"
-                maxlength="2"
-                pattern="[0-9]{1,2}"
-              />
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="./assets/innoq-logo.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INNOQ Timer</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <div id="app">
+    <header>
+      <img src="./assets/innoq-logo.svg" alt="INNOQ Logo" />
+    </header>
+
+    <innoq-timer offsetInMinutes="15">
+      <main>
+        <section id="timer-input">
+          <form id="timer-input-form">
+            <label for="hour-input">Pause bis</label>
+            <div>
+              <input type="number" id="hour-input" placeholder="HH" min="0" max="23" step="1" required />
+              <span>:</span>
+              <input type="number" id="minute-input" placeholder="MM" min="0" max="59" step="1" required />
+            </div>
+
+            <button id="start-btn" type="submit">
+              Start Timer
+            </button>
+          </form>
+        </section>
+
+        <section id="timer-display" class="timer-display hidden">
+          <h2>Pause bis <span id="countdown-target-time">17:30</span></h2>
+          <div class="timer-border-wrapper">
+            <div id="remaining-time">
+              00:00
             </div>
           </div>
-          
-          <button id="start-btn" class="timer__button timer__button--start">
-            Start Timer
+
+          <button id="stop-btn">
+            Stop
           </button>
-        </section>
-        
-        <section class="timer__display-section">
-          <h2 class="timer__countdown-title">Pause Bis <span id="countdown-target-time"></span></h2>
-          <div id="timer-display" class="timer__display">
-            00:00
-          </div>
-          
-          <div id="timer-controls" class="timer__controls timer__controls--hidden">
-            <button id="stop-btn" class="timer__button timer__button--stop">
-              Stop
-            </button>
-          </div>
-          
-          <button id="reset-btn" class="timer__button timer__button--reset timer__button--hidden">
+
+          <button id="reset-btn" class="reset hidden">
             Reset Timer
           </button>
         </section>
       </main>
-    </div>
-    
-    <script type="module" src="/main.js"></script>
-  </body>
+    </innoq-timer>
+  </div>
+
+  <script type="module" src="./main.js" crossorigin="anonymous"></script>
+</body>
+
 </html>

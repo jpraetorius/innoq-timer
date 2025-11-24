@@ -1,333 +1,403 @@
-// INNOQ Timer Application - Main JavaScript Logic
-// Following progressive enhancement and web standards
-
-class InnoqTimer {
+// INNOQ Timer web component powered by the light DOM
+class InnoqTimerElement extends HTMLElement {
   constructor() {
-    // DOM Elements
-    this.hourInput = document.getElementById('hour-input');
-    this.minuteInput = document.getElementById('minute-input');
-    this.startBtn = document.getElementById('start-btn');
-    this.stopBtn = document.getElementById('stop-btn');
-    this.resetBtn = document.getElementById('reset-btn');
-    this.timerDisplay = document.getElementById('timer-display');
-    this.timerControls = document.getElementById('timer-controls');
-    this.inputSection = document.querySelector('.timer__input-section');
-    this.displaySection = document.querySelector('.timer__display-section');
-    this.targetTimeDisplay = document.getElementById('target-time-display');
-    this.countdownTargetTime = document.getElementById('countdown-target-time');
-    
-    // Timer state
+    super();
     this.totalSeconds = 0;
-    this.remainingSeconds = 0;
     this.isRunning = false;
     this.intervalId = null;
-    
-    // Initialize the application
-    this.init();
+    this._eventsBound = false;
+    this.remainingDuration = this.secondsToDuration(0);
+    this.durationFormatter = new Intl.DurationFormat(undefined, {
+          style: 'digital',
+          hours: '2-digit',
+          minutes: '2-digit',
+          seconds: '2-digit'
+        });
   }
-  
-  init() {
-    this.bindEvents();
-    this.updateDisplay();
-    this.validateInput();
+
+  static get observedAttributes() {
+    return ['offsetinminutes'];
+  }
+
+  connectedCallback() {
+    if (!this.form || !this.hourInput || !this.minuteInput) {
+      return;
+    }
+
+    if (!this._eventsBound) {
+      this.bindEvents();
+    }
+
+    this.applyOffsetFromAttribute();
+    if (this.hourInput) {
+      this.hourInput.focus();
+    }
+  }
+
+  disconnectedCallback() {
+    this.removeEvents();
+    this.clearTimerInterval();
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (!this.isConnected || oldValue === newValue) {
+      return;
+    }
+
+    if (name === 'offsetinminutes') {
+      this.applyOffsetFromAttribute();
+    }
+  }
+
+  get form() {
+    return this.querySelector('#timer-input-form');
+  }
+
+  get hourInput() {
+    return this.querySelector('#hour-input');
+  }
+
+  get minuteInput() {
+    return this.querySelector('#minute-input');
+  }
+
+  get stopBtn() {
+    return this.querySelector('#stop-btn');
+  }
+
+  get resetBtn() {
+    return this.querySelector('#reset-btn');
+  }
+
+  get remainingTime() {
+    return this.querySelector('#remaining-time');
+  }
+
+  get countdownTargetTime() {
+    return this.querySelector('#countdown-target-time');
+  }
+
+  get inputSection() {
+    return this.querySelector('#timer-input');
+  }
+
+  get displaySection() {
+    return this.querySelector('#timer-display');
+  }
+
+  get offsetInMinutesAttribute() {
+    const value = this.getAttribute('offsetinminutes');
+    if (value == null) {
+      return null;
+    }
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  bindEvents() {
+    if (!this.hourInput || !this.minuteInput || !this.form) {
+      return;
+    }
+
+    this._hourInputListener = () => {
+      this.updateTargetTimeDisplay();
+    };
+    this.hourInput.addEventListener('input', this._hourInputListener);
+
+    this._minuteInputListener = () => {
+      this.updateTargetTimeDisplay();
+    };
+    this.minuteInput.addEventListener('input', this._minuteInputListener);
+
+    this._formSubmitListener = (event) => {
+      event.preventDefault();
+      this.handleStart();
+    };
+    this.form.addEventListener('submit', this._formSubmitListener);
+
+    if (this.stopBtn) {
+      this._stopClickListener = () => this.handleStop();
+      this.stopBtn.addEventListener('click', this._stopClickListener);
+    }
+
+    if (this.resetBtn) {
+      this._resetClickListener = () => this.handleReset();
+      this.resetBtn.addEventListener('click', this._resetClickListener);
+    }
+
+    this._eventsBound = true;
+  }
+
+  removeEvents() {
+    if (!this._eventsBound) {
+      return;
+    }
+
+    if (this.hourInput && this._hourInputListener) {
+      this.hourInput.removeEventListener('input', this._hourInputListener);
+    }
+    if (this.minuteInput && this._minuteInputListener) {
+      this.minuteInput.removeEventListener('input', this._minuteInputListener);
+    }
+    if (this.form && this._formSubmitListener) {
+      this.form.removeEventListener('submit', this._formSubmitListener);
+    }
+    if (this.stopBtn && this._stopClickListener) {
+      this.stopBtn.removeEventListener('click', this._stopClickListener);
+    }
+    if (this.resetBtn && this._resetClickListener) {
+      this.resetBtn.removeEventListener('click', this._resetClickListener);
+    }
+
+    this._hourInputListener = null;
+    this._minuteInputListener = null;
+    this._formSubmitListener = null;
+    this._stopClickListener = null;
+    this._resetClickListener = null;
+    this._eventsBound = false;
+  }
+
+  secondsToDuration(totalSeconds) {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const seconds = safeSeconds % 60;
+    return { hours, minutes, seconds };
+  }
+
+  durationToSeconds(duration) {
+    if (!duration) {
+      return 0;
+    }
+    const hours = Number(duration.hours || 0);
+    const minutes = Number(duration.minutes || 0);
+    const seconds = Number(duration.seconds || 0);
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  applyOffsetFromAttribute() {
+    if (this.isRunning) {
+      return;
+    }
+
+    const offset = this.offsetInMinutesAttribute;
+    if (offset == null) {
+      return;
+    }
+
+    if (!this.hourInput || !this.minuteInput) {
+      return;
+    }
+
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + offset);
+    this.hourInput.value = now.getHours().toString().padStart(2, '0');
+    this.minuteInput.value = now.getMinutes().toString().padStart(2, '0');
     this.updateTargetTimeDisplay();
   }
-  
-  bindEvents() {
-    // Input validation on change and input
-    this.hourInput.addEventListener('input', () => {
-      this.validateInput();
-      this.updateTargetTimeDisplay();
-    });
-    this.hourInput.addEventListener('keypress', (e) => this.handleNumericInput(e));
-    this.minuteInput.addEventListener('input', () => {
-      this.validateInput();
-      this.updateTargetTimeDisplay();
-    });
-    this.minuteInput.addEventListener('keypress', (e) => this.handleNumericInput(e));
-    
-    // Enter key to start
-    this.hourInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && this.validateInput()) this.handleStart();
-    });
-    this.minuteInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && this.validateInput()) this.handleStart();
-    });
-    
-    // Button event listeners
-    this.startBtn.addEventListener('click', () => this.handleStart());
-    this.stopBtn.addEventListener('click', () => this.handleStop());
-    this.resetBtn.addEventListener('click', () => this.handleReset());
-  }
-  
-  handleNumericInput(e) {
-    // Only allow numbers
-    if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Enter') {
-      e.preventDefault();
+
+  getTimeValues() {
+    if (!this.hourInput || !this.minuteInput) {
+      return null;
     }
-  }
-  
-  validateInput() {
+
     const hourValue = this.hourInput.value.trim();
     const minuteValue = this.minuteInput.value.trim();
-    
-    if (hourValue === '' || minuteValue === '') {
-      this.startBtn.disabled = true;
-      return false;
-    }
-    
-    const hour = parseInt(hourValue, 10);
-    const minute = parseInt(minuteValue, 10);
-    
-    // Validate ranges
-    if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-      this.startBtn.disabled = true;
-      return false;
-    }
-    
-    // Enable if both hour and minute are valid
-    this.startBtn.disabled = false;
-    return true;
-  }
-  
-  parseTimeInput() {
-    const hourValue = this.hourInput.value.trim();
-    const minuteValue = this.minuteInput.value.trim();
-    
+
     if (!hourValue || !minuteValue) {
-      return 0;
+      return null;
     }
-    
-    // Parse time input
+
     const hours = parseInt(hourValue, 10);
     const minutes = parseInt(minuteValue, 10);
-    
-    if (isNaN(hours) || isNaN(minutes)) {
+
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+      return null;
+    }
+
+    return { hours, minutes };
+  }
+
+  parseTimeInput() {
+    const values = this.getTimeValues();
+    if (!values) {
       return 0;
     }
-    
-    // Create target datetime for today
+
+    const { hours, minutes } = values;
+
     const now = new Date();
-    const targetDate = new Date();
+    const targetDate = new Date(now.getTime());
     targetDate.setHours(hours, minutes, 0, 0);
-    
-    // If the target time is in the past today, set it for tomorrow
+
+    // if the target time is before now, assume it is tomorrow
     if (targetDate <= now) {
       targetDate.setDate(targetDate.getDate() + 1);
     }
-    
+
     const diffInMs = targetDate.getTime() - now.getTime();
-    const diffInSeconds = Math.max(0, Math.floor(diffInMs / 1000));
-    
-    // Return difference in seconds
-    return diffInSeconds;
+    return Math.max(0, Math.floor(diffInMs / 1000));
   }
-  
-  formatTime(seconds) {
-    if (seconds <= 0) {
+
+  formatTime(duration) {
+    if (!duration) {
       return '00:00';
     }
-    
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    } else {
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+    if (this.durationFormatter) {
+      return this.durationFormatter.format(duration);
     }
   }
-  
+
   updateDisplay() {
-    this.timerDisplay.textContent = this.formatTime(this.remainingSeconds);
+    if (this.remainingTime) {
+      this.remainingTime.textContent = this.formatTime(this.remainingDuration);
+    }
   }
-  
+
   updateTargetTimeDisplay() {
-    const hourValue = this.hourInput.value.trim();
-    const minuteValue = this.minuteInput.value.trim();
-    
-    if (!hourValue || !minuteValue) {
-      this.targetTimeDisplay.textContent = '';
+    if (!this.countdownTargetTime) {
       return;
     }
-    
-    const hours = parseInt(hourValue, 10);
-    const minutes = parseInt(minuteValue, 10);
-    
-    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-      this.targetTimeDisplay.textContent = '';
+
+    if (this.form && !this.form.checkValidity()) {
+      this.countdownTargetTime.textContent = '';
       return;
     }
-    
-    // Create target datetime
-    const now = new Date();
-    const targetDate = new Date();
-    targetDate.setHours(hours, minutes, 0, 0);
-    
-    // If the target time is in the past today, set it for tomorrow
-    if (targetDate <= now) {
-      targetDate.setDate(targetDate.getDate() + 1);
-    }
-    
-    // Format as HH:MM
-    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-    this.targetTimeDisplay.textContent = formattedTime;
-  }
-  
-  handleStart() {
-    if (!this.validateInput()) {
-      this.showError('Please select a target time');
+
+    const values = this.getTimeValues();
+    if (!values) {
+      this.countdownTargetTime.textContent = '';
       return;
     }
-    
-    // Fresh start
-    this.totalSeconds = this.parseTimeInput();
-    this.remainingSeconds = this.totalSeconds;
-    
-    if (this.totalSeconds <= 0) {
-      this.showError('Please select a time');
-      return;
-    }
-    
-    // Start timer
-    this.isRunning = true;
-    
-    // UI Updates - Hide input, show display
-    this.inputSection.classList.add('timer__input-section--hidden');
-    this.displaySection.classList.add('timer__display-section--visible');
-    this.timerControls.classList.remove('timer__controls--hidden');
-    this.resetBtn.classList.add('timer__button--hidden');
-    this.timerDisplay.classList.add('timer__display--running');
-    
-    // Update countdown target time display
-    const hours = parseInt(this.hourInput.value, 10);
-    const minutes = parseInt(this.minuteInput.value, 10);
+
+    const { hours, minutes } = values;
     const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     this.countdownTargetTime.textContent = formattedTime;
-    
-    // Start countdown
+  }
+
+  handleStart() {
+    if (!this.form || !this.form.checkValidity()) {
+      return;
+    }
+
+    const totalSeconds = this.parseTimeInput();
+    this.totalSeconds = totalSeconds;
+    this.remainingDuration = this.secondsToDuration(totalSeconds);
+
+    if (totalSeconds <= 0) {
+      return;
+    }
+
+    this.isRunning = true;
+    this.updateDisplay();
+    this.updateTargetTimeDisplay();
+
+    // switch from input display to timer display
+    if (this.inputSection) {
+      this.inputSection.classList.add('hidden');
+    }
+    if (this.displaySection) {
+      this.displaySection.classList.remove('hidden');
+    }
+    if (this.remainingTime) {
+      this.remainingTime.classList.add('running');
+    }
+
     this.startCountdown();
   }
-  
-  
+
   handleStop() {
     this.isRunning = false;
-    clearInterval(this.intervalId);
-    
-    // Reset to initial state - show input, hide display
-    this.remainingSeconds = 0;
-    this.inputSection.classList.remove('timer__input-section--hidden');
-    this.displaySection.classList.remove('timer__display-section--visible');
-    this.updateDisplay();
+    this.clearTimerInterval();
+    this.totalSeconds = 0;
+    this.remainingDuration = this.secondsToDuration(0);
+
     this.resetUI();
+    this.applyOffsetFromAttribute();
   }
-  
+
   handleReset() {
     this.isRunning = false;
     this.totalSeconds = 0;
-    this.remainingSeconds = 0;
-    
-    clearInterval(this.intervalId);
-    
-    // Reset UI completely - show input, hide display
-    this.inputSection.classList.remove('timer__input-section--hidden');
-    this.displaySection.classList.remove('timer__display-section--visible');
-    this.hourInput.value = '';
-    this.minuteInput.value = '';
-    this.hourInput.disabled = false;
-    this.minuteInput.disabled = false;
-    this.updateDisplay();
+    this.remainingDuration = this.secondsToDuration(0);
+    this.clearTimerInterval();
     this.resetUI();
-    this.validateInput();
-    
-    // Remove finished state
-    this.timerDisplay.classList.remove('timer__display--finished');
-    this.hourInput.focus();
+    this.applyOffsetFromAttribute();
+
+    if (this.hourInput) {
+      this.hourInput.focus();
+    }
+
   }
-  
+
   resetUI() {
-    // Show input section, hide display section
-    this.inputSection.classList.remove('timer__input-section--hidden');
-    this.displaySection.classList.remove('timer__display-section--visible');
-    this.hourInput.disabled = false;
-    this.minuteInput.disabled = false;
-    this.startBtn.textContent = 'Start Timer';
-    this.timerControls.classList.add('timer__controls--hidden');
-    this.resetBtn.classList.add('timer__button--hidden');
-    this.timerDisplay.classList.remove('timer__display--running', 'timer__display--finished');
-  }
-  
-  startCountdown() {
-    this.intervalId = setInterval(() => {
-      this.remainingSeconds--; // Decrement by 1 second
-      this.updateDisplay();
-      
-      if (this.remainingSeconds <= 0) {
-        this.handleTimerComplete();
-      }
-    }, 1000); // Update every second
-  }
-  
-  handleTimerComplete() {
-    this.isRunning = false;
-    clearInterval(this.intervalId);
-    
-    // Keep display section visible, keep input section hidden
-    this.inputSection.classList.add('timer__input-section--hidden');
-    this.displaySection.classList.add('timer__display-section--visible');
-    this.timerDisplay.classList.remove('timer__display--running');
-    this.timerDisplay.classList.add('timer__display--finished');
-    
-    // Show reset button prominently, hide other controls
-    this.timerControls.classList.add('timer__controls--hidden');
-    this.resetBtn.classList.remove('timer__button--hidden');
-    
-    // Optional: Play notification sound or show browser notification
-    this.notifyComplete();
-  }
-  
-  notifyComplete() {
-    // Browser notification (requires permission)
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('INNOQ Timer', {
-        body: 'Timer has finished!',
-        icon: '/vite.svg'
-      });
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
-      Notification.requestPermission().then((permission) => {
-        if (permission === 'granted') {
-          new Notification('INNOQ Timer', {
-            body: 'Timer has finished!',
-            icon: '/vite.svg'
-          });
-        }
-      });
+    if (this.inputSection) {
+      this.inputSection.classList.remove('hidden');
+    }
+    if (this.displaySection) {
+      this.displaySection.classList.add('hidden');
+    }
+    if (this.stopBtn) {
+      this.stopBtn.classList.remove('hidden');
+    }
+    if (this.resetBtn) {
+      this.resetBtn.classList.add('hidden');
+    }
+    if (this.remainingTime) {
+      this.remainingTime.classList.remove('running', 'finished');
+    }
+    if (this.hourInput) {
+      this.hourInput.value = '';
+    }
+    if (this.minuteInput) {
+      this.minuteInput.value = '';
     }
   }
-  
-  showError(message) {
-    // Simple error display - could be enhanced with proper UI
-    console.error('Timer Error:', message);
+
+  startCountdown() {
+    this.clearTimerInterval();
+    this.intervalId = window.setInterval(() => {
+      const nextSeconds = Math.max(0, this.durationToSeconds(this.remainingDuration) - 1);
+      this.remainingDuration = this.secondsToDuration(nextSeconds);
+      this.updateDisplay();
+
+      if (nextSeconds <= 0) {
+        this.handleTimerComplete();
+      }
+    }, 1000);
+  }
+
+  clearTimerInterval() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+  }
+
+  handleTimerComplete() {
+    this.isRunning = false;
+    this.clearTimerInterval();
+
+    if (this.stopBtn) {
+      this.stopBtn.classList.add('hidden');
+    }
+    if (this.resetBtn) {
+      this.resetBtn.classList.remove('hidden');
+    }
+    if (this.remainingTime) {
+      this.remainingTime.classList.remove('running');
+      this.remainingTime.classList.add('finished');
+    }
+
+    this.notifyComplete();
+  }
+
+  notifyComplete() {
     
-    // Visual feedback on input
-    this.timeInput.style.borderColor = '#ff267a';
-    setTimeout(() => {
-      this.timeInput.style.borderColor = '';
-    }, 2000);
   }
 }
 
-// Initialize the timer when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-  new InnoqTimer();
-});
-
-// Handle browser refresh/close during active timer
-window.addEventListener('beforeunload', (event) => {
-  const timer = document.querySelector('.timer__display--running');
-  if (timer) {
-    event.preventDefault();
-    return 'Timer is running. Are you sure you want to leave?';
-  }
-});
+if (!customElements.get('innoq-timer')) {
+  customElements.define('innoq-timer', InnoqTimerElement);
+}
